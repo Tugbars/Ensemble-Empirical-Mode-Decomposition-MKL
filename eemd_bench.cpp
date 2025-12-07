@@ -210,10 +210,13 @@ void bench_emd_vs_eemd()
 
 int main()
 {
+    // CRITICAL: Keep MKL sequential, let OpenMP handle parallelism
+    mkl_set_num_threads(1);
+
     std::cout << "EEMD-MKL Performance Benchmark\n";
     std::cout << "==============================\n";
     std::cout << "Max threads: " << omp_get_max_threads() << "\n";
-    std::cout << "MKL threads: " << mkl_get_max_threads() << "\n";
+    std::cout << "MKL threads: " << mkl_get_max_threads() << " (sequential for EEMD)\n";
 
     bench_signal_length();
     bench_ensemble_size();

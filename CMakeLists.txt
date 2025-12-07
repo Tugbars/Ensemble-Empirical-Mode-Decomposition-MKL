@@ -37,44 +37,72 @@ message(STATUS "MKL found: ${MKL_ROOT}")
 # Compiler Flags
 # ==============================================================================
 
-if(MSVC OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "IntelLLVM")
-    # Windows: MSVC or Intel icx-cl (MSVC-style flags)
+if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM")
+    # Intel ICX/ICPX compiler
+    message(STATUS "Detected Intel LLVM compiler")
+    if(WIN32)
+        set(EEMD_CXX_FLAGS_RELEASE
+            /O2
+            /Ob2
+            /Qopenmp
+            /fp:fast
+            /EHsc
+            /DNDEBUG
+            /QxHost
+        )
+        set(EEMD_CXX_FLAGS_DEBUG
+            /Od
+            /Zi
+            /Qopenmp
+            /EHsc
+            /D_DEBUG
+        )
+    else()
+        set(EEMD_CXX_FLAGS_RELEASE
+            -O3
+            -march=native
+            -ffast-math
+            -qopenmp
+            -DNDEBUG
+        )
+        set(EEMD_CXX_FLAGS_DEBUG
+            -O0
+            -g
+            -qopenmp
+        )
+    endif()
+elseif(MSVC)
+    # Microsoft Visual C++
+    message(STATUS "Detected MSVC compiler")
     set(EEMD_CXX_FLAGS_RELEASE
         /O2
         /Ob2
-        /Qopenmp
+        /openmp
         /fp:fast
         /EHsc
         /DNDEBUG
     )
-    
     set(EEMD_CXX_FLAGS_DEBUG
         /Od
         /Zi
-        /Qopenmp
+        /openmp
         /EHsc
         /D_DEBUG
     )
-    
-    # Try to use AVX2/AVX-512 if available
-    if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM")
-        list(APPEND EEMD_CXX_FLAGS_RELEASE /QxHost)
-    endif()
-    
 else()
-    # Linux: Intel icpx or GCC (GNU-style flags)
+    # GCC/Clang on Linux
+    message(STATUS "Detected GCC/Clang compiler")
     set(EEMD_CXX_FLAGS_RELEASE
         -O3
         -march=native
         -ffast-math
-        -qopenmp
+        -fopenmp
         -DNDEBUG
     )
-    
     set(EEMD_CXX_FLAGS_DEBUG
         -O0
         -g
-        -qopenmp
+        -fopenmp
     )
 endif()
 

@@ -426,8 +426,11 @@ namespace eemd
 
             n_points_ = n;
 
+            // Cast to MKL_INT to ensure correct integer size
+            const MKL_INT mkl_n = static_cast<MKL_INT>(n);
+
             // Grow-only: only reallocate if we need more space
-            const MKL_INT required_coeffs = 4 * (n - 1);
+            const MKL_INT required_coeffs = 4 * (mkl_n - 1);
             if (coeffs_.capacity < static_cast<size_t>(required_coeffs))
             {
                 coeffs_.resize(required_coeffs);
@@ -437,7 +440,7 @@ namespace eemd
             // Create Data Fitting task
             MKL_INT status = dfdNewTask1D(
                 &task_,
-                n,
+                mkl_n,
                 x,
                 DF_NON_UNIFORM_PARTITION,
                 1,
@@ -485,11 +488,13 @@ namespace eemd
             if (!spline_valid_)
                 return false;
 
+            const MKL_INT mkl_n_sites = static_cast<MKL_INT>(n_sites);
+
             MKL_INT status = dfdInterpolate1D(
                 task_,
                 DF_INTERP,
                 DF_METHOD_PP,
-                n_sites,
+                mkl_n_sites,
                 sites,
                 DF_NON_UNIFORM_PARTITION,
                 1,
