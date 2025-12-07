@@ -2,6 +2,9 @@
  * EEMD Debug Test - Diagnose why IMFs = 0
  */
 
+// Enable debug output for this file
+#define EEMD_DEBUG
+
 #define _USE_MATH_DEFINES
 #include <cmath>
 #ifndef M_PI

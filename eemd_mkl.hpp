@@ -30,10 +30,30 @@
 #include <vector>
 #include <algorithm>
 #include <stdexcept>
+#include <iostream> // For MKL error diagnostics
 
 // Windows compatibility: M_PI is not standard C++
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
+#endif
+
+// Compiler-aware SIMD pragma
+// MSVC standard OpenMP doesn't support #pragma omp simd
+// Intel ICX, GCC, and Clang do
+#if defined(__INTEL_LLVM_COMPILER) || defined(__GNUC__) || defined(__clang__)
+#define EEMD_OMP_SIMD _Pragma("omp simd")
+#define EEMD_OMP_SIMD_REDUCTION(op, var) _Pragma("omp simd reduction(" #op ":" #var ")")
+#define EEMD_OMP_SIMD_REDUCTION2(op, v1, v2) _Pragma("omp simd reduction(" #op ":" #v1 "," #v2 ")")
+#else
+// MSVC or unknown compiler - disable SIMD pragmas
+#define EEMD_OMP_SIMD
+#define EEMD_OMP_SIMD_REDUCTION(op, var)
+#define EEMD_OMP_SIMD_REDUCTION2(op, v1, v2)
+#endif
+
+// Define EEMD_DEBUG to enable error output, otherwise silent
+#ifndef EEMD_DEBUG
+#define EEMD_SILENT
 #endif
 
 namespace eemd
@@ -331,12 +351,12 @@ namespace eemd
     }
 
     // ============================================================================
-    // Boundary Extension - No Allocation Version
+    // Boundary Extension - Guaranteed Coverage of [0, n-1]
     // ============================================================================
 
     /**
-     * Extend extrema using mirror boundary conditions
-     * Uses pre-allocated scratch buffers
+     * Extend extrema to guarantee the spline covers the full signal range [0, n-1]
+     * Uses mirror boundary conditions plus explicit edge points if needed
      */
     inline void extend_extrema_noalloc(
         const std::vector<int32_t> &indices,
@@ -368,8 +388,45 @@ namespace eemd
         const int32_t left_extend = std::min(extend_count, n_orig - 1);
         const int32_t right_extend = std::min(extend_count, n_orig - 1);
 
-        out_count = n_orig + left_extend + right_extend;
-        original_start = left_extend;
+        // First, compute what the leftmost and rightmost x will be after mirror extension
+        double leftmost_x = static_cast<double>(indices[0]);
+        double rightmost_x = static_cast<double>(indices[n_orig - 1]);
+
+        if (left_extend > 0)
+        {
+            // Leftmost mirrored point
+            const double x_first = static_cast<double>(indices[0]);
+            const double x_mirror_src = static_cast<double>(indices[left_extend]);
+            leftmost_x = 2.0 * x_first - x_mirror_src;
+        }
+
+        if (right_extend > 0)
+        {
+            // Rightmost mirrored point
+            const double x_last = static_cast<double>(indices[n_orig - 1]);
+            const double x_mirror_src = static_cast<double>(indices[n_orig - 1 - right_extend]);
+            rightmost_x = 2.0 * x_last - x_mirror_src;
+        }
+
+        // Check if we need to add explicit boundary points
+        const bool need_left_boundary = (leftmost_x > 0.0);
+        const bool need_right_boundary = (rightmost_x < static_cast<double>(signal_len - 1));
+
+        // Add left boundary point if needed (extrapolate to x = -1 or use x = 0)
+        if (need_left_boundary)
+        {
+            // Add a point at x = -1 (or further left) to ensure coverage of x = 0
+            double boundary_x = -1.0;
+            // Linear extrapolation from first two extrema
+            double x0 = static_cast<double>(indices[0]);
+            double x1 = static_cast<double>(indices[1]);
+            double y0 = signal[indices[0]];
+            double y1 = signal[indices[1]];
+            double slope = (y1 - y0) / (x1 - x0);
+            double boundary_y = y0 + slope * (boundary_x - x0);
+            out_x.push_back(boundary_x);
+            out_y.push_back(boundary_y);
+        }
 
         // Mirror left boundary
         for (int32_t i = 0; i < left_extend; ++i)
@@ -381,6 +438,8 @@ namespace eemd
             out_x.push_back(2.0 * x_first - x_orig);
             out_y.push_back(signal[indices[src_idx]]);
         }
+
+        original_start = static_cast<int32_t>(out_x.size());
 
         // Original extrema
         for (int32_t i = 0; i < n_orig; ++i)
@@ -399,6 +458,24 @@ namespace eemd
             out_x.push_back(2.0 * x_last - x_orig);
             out_y.push_back(signal[indices[src_idx]]);
         }
+
+        // Add right boundary point if needed
+        if (need_right_boundary)
+        {
+            // Add a point at x = signal_len (beyond the last index)
+            double boundary_x = static_cast<double>(signal_len);
+            // Linear extrapolation from last two extrema
+            double x0 = static_cast<double>(indices[n_orig - 2]);
+            double x1 = static_cast<double>(indices[n_orig - 1]);
+            double y0 = signal[indices[n_orig - 2]];
+            double y1 = signal[indices[n_orig - 1]];
+            double slope = (y1 - y0) / (x1 - x0);
+            double boundary_y = y1 + slope * (boundary_x - x1);
+            out_x.push_back(boundary_x);
+            out_y.push_back(boundary_y);
+        }
+
+        out_count = static_cast<int32_t>(out_x.size());
     }
 
     // ============================================================================
@@ -447,8 +524,20 @@ namespace eemd
                 y,
                 DF_NO_HINT);
 
+            // DEBUG: Check for MKL errors (especially LP64/ILP64 mismatch)
             if (status != DF_STATUS_OK)
+            {
+#ifdef EEMD_DEBUG
+                std::cerr << "[MKL ERROR] dfdNewTask1D failed, status=" << status
+                          << ", n=" << n << ", mkl_n=" << mkl_n
+                          << ", sizeof(MKL_INT)=" << sizeof(MKL_INT) << "\n";
+                if (status == -3)
+                {
+                    std::cerr << "  -> Likely LP64/ILP64 mismatch! Link with mkl_intel_lp64, not ilp64.\n";
+                }
+#endif
                 return false;
+            }
             task_valid_ = true;
 
             const MKL_INT spline_order = DF_PP_CUBIC;
@@ -467,6 +556,9 @@ namespace eemd
 
             if (status != DF_STATUS_OK)
             {
+#ifdef EEMD_DEBUG
+                std::cerr << "[MKL ERROR] dfdEditPPSpline1D failed, status=" << status << "\n";
+#endif
                 cleanup_task();
                 return false;
             }
@@ -475,6 +567,9 @@ namespace eemd
 
             if (status != DF_STATUS_OK)
             {
+#ifdef EEMD_DEBUG
+                std::cerr << "[MKL ERROR] dfdConstruct1D failed, status=" << status << "\n";
+#endif
                 cleanup_task();
                 return false;
             }
@@ -504,7 +599,15 @@ namespace eemd
                 DF_NO_HINT,
                 nullptr);
 
-            return (status == DF_STATUS_OK);
+            if (status != DF_STATUS_OK)
+            {
+#ifdef EEMD_DEBUG
+                std::cerr << "[MKL ERROR] dfdInterpolate1D failed, status=" << status << "\n";
+#endif
+                return false;
+            }
+
+            return true;
         }
 
         bool is_valid() const { return spline_valid_; }
@@ -559,6 +662,11 @@ namespace eemd
 
                 if (scratch_.max_idx.size() < 2 || scratch_.min_idx.size() < 2)
                 {
+#ifdef EEMD_DEBUG
+                    std::cerr << "[EEMD DEBUG] Not enough extrema: maxima="
+                              << scratch_.max_idx.size() << ", minima="
+                              << scratch_.min_idx.size() << ", n=" << n << "\n";
+#endif
                     return false; // Residue
                 }
 
@@ -604,7 +712,7 @@ namespace eemd
                 double sd_num = 0.0;
                 double sd_den = 0.0;
 
-#pragma omp simd reduction(+ : sd_num, sd_den)
+                EEMD_OMP_SIMD_REDUCTION2(+, sd_num, sd_den)
                 for (int32_t i = 0; i < n; ++i)
                 {
                     mean_env_[i] = 0.5 * (upper_env_[i] + lower_env_[i]);
@@ -613,8 +721,8 @@ namespace eemd
                     sd_den += work_[i] * work_[i];
                 }
 
-// Update working signal
-#pragma omp simd
+                // Update working signal
+                EEMD_OMP_SIMD
                 for (int32_t i = 0; i < n; ++i)
                 {
                     work_[i] -= mean_env_[i];
@@ -639,7 +747,7 @@ namespace eemd
 
             std::memcpy(imf, work_.data, n * sizeof(double));
 
-#pragma omp simd
+            EEMD_OMP_SIMD
             for (int32_t i = 0; i < n; ++i)
             {
                 signal[i] -= work_[i];
@@ -689,7 +797,7 @@ namespace eemd
 
             // Compute signal stats
             double signal_mean = 0.0;
-#pragma omp simd reduction(+ : signal_mean)
+            EEMD_OMP_SIMD_REDUCTION(+, signal_mean)
             for (int32_t i = 0; i < n; ++i)
             {
                 signal_mean += signal[i];
@@ -697,7 +805,7 @@ namespace eemd
             signal_mean /= n;
 
             double signal_var = 0.0;
-#pragma omp simd reduction(+ : signal_var)
+            EEMD_OMP_SIMD_REDUCTION(+, signal_var)
             for (int32_t i = 0; i < n; ++i)
             {
                 const double d = signal[i] - signal_mean;
@@ -758,8 +866,8 @@ namespace eemd
                     vdRngGaussian(VSL_RNG_METHOD_GAUSSIAN_ICDF, stream,
                                   n, noise.data, 0.0, noise_amplitude);
 
-// Add noise to signal
-#pragma omp simd
+                    // Add noise to signal
+                    EEMD_OMP_SIMD
                     for (int32_t i = 0; i < n; ++i)
                     {
                         noisy_signal[i] = signal[i] + noise[i];
@@ -781,7 +889,7 @@ namespace eemd
                     // OPTIMIZATION 3: Accumulate to thread-local buffer (NO CRITICAL!)
                     for (int32_t k = 0; k < imf_count; ++k)
                     {
-#pragma omp simd
+                        EEMD_OMP_SIMD
                         for (int32_t i = 0; i < n; ++i)
                         {
                             thread_sum[k][i] += local_imfs[k][i];
@@ -798,7 +906,7 @@ namespace eemd
 
                     for (int32_t k = 0; k < max_imfs; ++k)
                     {
-#pragma omp simd
+                        EEMD_OMP_SIMD
                         for (int32_t i = 0; i < n; ++i)
                         {
                             global_sum[k][i] += thread_sum[k][i];
@@ -816,7 +924,7 @@ namespace eemd
             for (int32_t k = 0; k < n_imfs; ++k)
             {
                 imfs[k].resize(n);
-#pragma omp simd
+                EEMD_OMP_SIMD
                 for (int32_t i = 0; i < n; ++i)
                 {
                     imfs[k][i] = global_sum[k][i] * scale;
@@ -887,7 +995,7 @@ namespace eemd
         AlignedBuffer<MKL_Complex16> fft_out(n);
         AlignedBuffer<MKL_Complex16> analytic(n);
 
-#pragma omp simd
+        EEMD_OMP_SIMD
         for (int32_t i = 0; i < n; ++i)
         {
             fft_in[i].real = imf[i];
