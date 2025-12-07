@@ -105,7 +105,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/spline_bench.cpp")
 endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/eemd_debug.cpp")
-    add_eemd_executable(eemd_debug eemd_debug.cpp)
+ #   add_eemd_executable(eemd_debug eemd_debug.cpp)
 endif()
 
 # ============================================================================
