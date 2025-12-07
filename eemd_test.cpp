@@ -11,11 +11,17 @@
  *       -lmkl_intel_lp64 -lmkl_gnu_thread -lmkl_core -lgomp -lpthread -lm
  */
 
+// Windows compatibility: M_PI is not standard C++
+#define _USE_MATH_DEFINES
+#include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #include "eemd_mkl.hpp"
 #include <iostream>
 #include <iomanip>
 #include <chrono>
-#include <cmath>
 
 using namespace eemd;
 
