@@ -10,14 +10,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ============================================================================
-# MKL Configuration (The "Working" Pattern)
+# MKL Configuration
 # ============================================================================
 
-# CRITICAL: Force LP64 (32-bit integers) to fix the -1025 Error
+# CRITICAL: Force LP64 (32-bit integers)
 set(MKL_INTERFACE "lp64" CACHE STRING "MKL interface (lp64 or ilp64)" FORCE)
 set(MKL_THREADING "intel_thread" CACHE STRING "MKL threading" FORCE)
 
-# Find MKL using Intel's Config script
 find_package(MKL CONFIG REQUIRED)
 
 message(STATUS "MKL found: ${MKL_ROOT}")
@@ -33,34 +32,22 @@ find_package(OpenMP REQUIRED)
 # ============================================================================
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM")
-    # Intel ICX/ICPX
     message(STATUS "Detected Intel LLVM compiler (ICX)")
     if(WIN32)
-        set(CXX_FLAGS_RELEASE
-            /O3 /QxHost /Qipo /fp:fast /Qopenmp /EHsc /DNDEBUG
-        )
+        set(CXX_FLAGS_RELEASE /O3 /QxHost /Qipo /fp:fast /Qopenmp /EHsc /DNDEBUG)
     else()
-        set(CXX_FLAGS_RELEASE
-            -O3 -xHost -ipo -fp-model fast -qopenmp -DNDEBUG
-        )
+        set(CXX_FLAGS_RELEASE -O3 -xHost -ipo -fp-model fast -qopenmp -DNDEBUG)
     endif()
-    # Add IPO property
     set(USE_IPO TRUE)
 
 elseif(MSVC)
-    # Microsoft Visual C++
     message(STATUS "Detected MSVC compiler")
-    set(CXX_FLAGS_RELEASE
-        /O2 /Ob2 /fp:fast /arch:AVX2 /GL /EHsc /DNDEBUG /openmp
-    )
-    set(USE_IPO TRUE) # /GL implies LTCG
+    set(CXX_FLAGS_RELEASE /O2 /Ob2 /fp:fast /arch:AVX2 /GL /EHsc /DNDEBUG /openmp)
+    set(USE_IPO TRUE)
 
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    # GCC/Clang
     message(STATUS "Detected GCC/Clang compiler")
-    set(CXX_FLAGS_RELEASE
-        -O3 -march=native -ffast-math -funroll-loops -flto -fopenmp -DNDEBUG
-    )
+    set(CXX_FLAGS_RELEASE -O3 -march=native -ffast-math -funroll-loops -flto -fopenmp -DNDEBUG)
     set(USE_IPO TRUE)
 endif()
 
@@ -76,20 +63,15 @@ target_include_directories(eemd_mkl INTERFACE
     $<INSTALL_INTERFACE:include>
 )
 
-# Apply compiler flags to the interface
 target_compile_options(eemd_mkl INTERFACE 
     $<$<CONFIG:Release>:${CXX_FLAGS_RELEASE}>
-    $<$<CONFIG:Debug>:-g -O0>
 )
 
-# Link MKL and OpenMP
-# Note: MKL::MKL is the meta-target that reads MKL_INTERFACE variable
 target_link_libraries(eemd_mkl INTERFACE 
     MKL::MKL 
     OpenMP::OpenMP_CXX
 )
 
-# Define macros
 target_compile_definitions(eemd_mkl INTERFACE 
     MKL_LP64 
     _USE_MATH_DEFINES
@@ -99,12 +81,9 @@ target_compile_definitions(eemd_mkl INTERFACE
 # Executables
 # ============================================================================
 
-# Helper macro
 macro(add_eemd_executable name source)
     add_executable(${name} ${source})
     target_link_libraries(${name} PRIVATE eemd_mkl)
-    
-    # Enable Interprocedural Optimization if supported
     if(USE_IPO)
         set_target_properties(${name} PROPERTIES 
             INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE
@@ -112,24 +91,24 @@ macro(add_eemd_executable name source)
     endif()
 endmacro()
 
-# Benchmark
 add_eemd_executable(eemd_bench eemd_bench.cpp)
+add_eemd_executable(eemd_test eemd_test.cpp)
 
-# Debug Tool (Optional)
+# 14900KF optimized benchmark
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/eemd_bench_14900kf.cpp")
+    add_eemd_executable(eemd_bench_14900kf eemd_bench_14900kf.cpp)
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/eemd_debug.cpp")
     add_eemd_executable(eemd_debug eemd_debug.cpp)
 endif()
 
 # ============================================================================
-# Build Instructions
+# Summary
 # ============================================================================
 message(STATUS "")
-message(STATUS "=== Build Instructions ===")
-message(STATUS "  1. mkdir build && cd build")
-if(WIN32)
-    message(STATUS "  2. cmake -G Ninja -DCMAKE_CXX_COMPILER=icx -DCMAKE_BUILD_TYPE=Release ..")
-else()
-    message(STATUS "  2. cmake -DCMAKE_CXX_COMPILER=icpx -DCMAKE_BUILD_TYPE=Release ..")
-endif()
-message(STATUS "  3. cmake --build . --config Release")
+message(STATUS "=== EEMD-MKL Configuration ===")
+message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID}")
+message(STATUS "  MKL interface: ${MKL_INTERFACE}")
+message(STATUS "  MKL threading: ${MKL_THREADING}")
 message(STATUS "")
