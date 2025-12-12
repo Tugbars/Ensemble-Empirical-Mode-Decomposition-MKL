@@ -61,7 +61,7 @@ void generate_financial_signal(double *signal, int32_t n, uint32_t seed)
         // Regime switch probability
         double regime_prob = 0.02;
         double u;
-        vdRngUniform(VSL_RNG_METHOD_STD, stream, 1, &u, 0.0, 1.0);
+        vdRngUniform(VSL_RNG_METHOD_UNIFORM_STD, stream, 1, &u, 0.0, 1.0);
 
         if (u < regime_prob)
         {

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(eemd_mkl 
     VERSION 1.0.0
     LANGUAGES CXX
-    DESCRIPTION "EEMD with Intel MKL"
+    DESCRIPTION "EEMD/ICEEMDAN with Intel MKL"
 )
 
 set(CMAKE_CXX_STANDARD 17)
@@ -78,6 +78,21 @@ target_compile_definitions(eemd_mkl INTERFACE
 )
 
 # ============================================================================
+# ICEEMDAN Interface Library (extends EEMD)
+# ============================================================================
+
+add_library(iceemdan_mkl INTERFACE)
+add_library(eemd::iceemdan_mkl ALIAS iceemdan_mkl)
+
+target_include_directories(iceemdan_mkl INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include>
+)
+
+# ICEEMDAN depends on EEMD
+target_link_libraries(iceemdan_mkl INTERFACE eemd_mkl)
+
+# ============================================================================
 # Executables
 # ============================================================================
 
@@ -91,6 +106,17 @@ macro(add_eemd_executable name source)
     endif()
 endmacro()
 
+macro(add_iceemdan_executable name source)
+    add_executable(${name} ${source})
+    target_link_libraries(${name} PRIVATE iceemdan_mkl)
+    if(USE_IPO)
+        set_target_properties(${name} PROPERTIES 
+            INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE
+        )
+    endif()
+endmacro()
+
+# --- EEMD executables ---
 add_eemd_executable(eemd_bench eemd_bench.cpp)
 add_eemd_executable(eemd_test eemd_test.cpp)
 
@@ -105,15 +131,49 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/spline_bench.cpp")
 endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/eemd_debug.cpp")
- #   add_eemd_executable(eemd_debug eemd_debug.cpp)
+    # add_eemd_executable(eemd_debug eemd_debug.cpp)
 endif()
+
+# --- ICEEMDAN executables ---
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iceemdan_bench.cpp")
+    add_iceemdan_executable(iceemdan_bench iceemdan_bench.cpp)
+endif()
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iceemdan_test.cpp")
+    add_iceemdan_executable(iceemdan_test iceemdan_test.cpp)
+endif()
+
+# ============================================================================
+# Installation (optional)
+# ============================================================================
+
+include(GNUInstallDirs)
+
+install(TARGETS eemd_mkl iceemdan_mkl
+    EXPORT eemd_mkl_targets
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(FILES 
+    eemd_mkl.hpp 
+    iceemdan_mkl.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(EXPORT eemd_mkl_targets
+    FILE eemd_mkl-targets.cmake
+    NAMESPACE eemd::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/eemd_mkl
+)
 
 # ============================================================================
 # Summary
 # ============================================================================
 message(STATUS "")
-message(STATUS "=== EEMD-MKL Configuration ===")
+message(STATUS "=== EEMD/ICEEMDAN-MKL Configuration ===")
 message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "  MKL interface: ${MKL_INTERFACE}")
 message(STATUS "  MKL threading: ${MKL_THREADING}")
+message(STATUS "  EEMD header: eemd_mkl.hpp")
+message(STATUS "  ICEEMDAN header: iceemdan_mkl.hpp")
 message(STATUS "")
