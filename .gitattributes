@@ -1,2 +1,9 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Exclude from GitHub language statistics
+*.csv linguist-vendored
+*.ipynb linguist-vendored
+
+# Ensure line endings for scripts
+*.sh text eol=lf
