@@ -154,9 +154,17 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iceemdan_finance_bench.cpp")
 endif()
 
 # --- Examples ---
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/example_simple.cpp")
+    add_iceemdan_executable(example_simple example_simple.cpp)
+endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/example_finance_csv.cpp")
     add_iceemdan_executable(example_finance_csv example_finance_csv.cpp)
+endif()
+
+# --- Tests ---
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iceemdan_accuracy_test.cpp")
+    add_iceemdan_executable(accuracy_test iceemdan_accuracy_test.cpp)
 endif()
 
 # ============================================================================

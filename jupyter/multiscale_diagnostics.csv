@@ -1,0 +1,7 @@
+metric,value
+signal_length,2048
+num_imfs,6
+elapsed_ms,14.61
+orthogonality_index,0.099793
+rng_seed,42
+nan_count,0
