@@ -116,44 +116,10 @@ macro(add_iceemdan_executable name source)
     endif()
 endmacro()
 
-# --- EEMD executables ---
-add_eemd_executable(eemd_bench eemd_bench.cpp)
-add_eemd_executable(eemd_test eemd_test.cpp)
+# ============================================================================
+# Examples (in root)
+# ============================================================================
 
-# 14900KF optimized benchmark
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/eemd_bench_14900kf.cpp")
-    add_eemd_executable(eemd_bench_14900kf eemd_bench_14900kf.cpp)
-endif()
-
-# Spline comparison benchmark
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/spline_bench.cpp")
-    add_eemd_executable(spline_bench spline_bench.cpp)
-endif()
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/eemd_debug.cpp")
-    # add_eemd_executable(eemd_debug eemd_debug.cpp)
-endif()
-
-# --- ICEEMDAN executables ---
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iceemdan_bench.cpp")
-    add_iceemdan_executable(iceemdan_bench iceemdan_bench.cpp)
-endif()
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iceemdan_test.cpp")
-    add_iceemdan_executable(iceemdan_test iceemdan_test.cpp)
-endif()
-
-# --- ICEEMDAN Optimized (uses iceemdan_mkl_opt.hpp) ---
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iceemdan_opt_bench.cpp")
-    add_iceemdan_executable(iceemdan_opt_bench iceemdan_opt_bench.cpp)
-endif()
-
-# --- ICEEMDAN Finance Benchmark ---
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iceemdan_finance_bench.cpp")
-    add_iceemdan_executable(iceemdan_finance_bench iceemdan_finance_bench.cpp)
-endif()
-
-# --- Examples ---
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/example_simple.cpp")
     add_iceemdan_executable(example_simple example_simple.cpp)
 endif()
@@ -162,26 +128,53 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/example_finance_csv.cpp")
     add_iceemdan_executable(example_finance_csv example_finance_csv.cpp)
 endif()
 
-# --- Tests ---
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/iceemdan_accuracy_test.cpp")
-    add_iceemdan_executable(accuracy_test iceemdan_accuracy_test.cpp)
+# ============================================================================
+# Tests and Benchmarks (in test/ subdirectory)
+# ============================================================================
+
+set(TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test")
+
+# --- Core EEMD tests ---
+if(EXISTS "${TEST_DIR}/eemd_bench.cpp")
+    add_eemd_executable(eemd_bench ${TEST_DIR}/eemd_bench.cpp)
 endif()
 
-# --- Benchmarks ---
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bench_adaptive.cpp")
-    add_iceemdan_executable(bench_adaptive bench_adaptive.cpp)
+if(EXISTS "${TEST_DIR}/eemd_test.cpp")
+    add_eemd_executable(eemd_test ${TEST_DIR}/eemd_test.cpp)
 endif()
 
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bench_snumber.cpp")
-    add_iceemdan_executable(bench_snumber bench_snumber.cpp)
+# --- ICEEMDAN tests ---
+if(EXISTS "${TEST_DIR}/iceemdan_bench.cpp")
+    add_iceemdan_executable(iceemdan_bench ${TEST_DIR}/iceemdan_bench.cpp)
 endif()
 
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bench_simd.cpp")
-    add_iceemdan_executable(bench_simd bench_simd.cpp)
+if(EXISTS "${TEST_DIR}/iceemdan_accuracy_test.cpp")
+    add_iceemdan_executable(accuracy_test ${TEST_DIR}/iceemdan_accuracy_test.cpp)
 endif()
 
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_akima.cpp")
-    add_iceemdan_executable(test_akima test_akima.cpp)
+if(EXISTS "${TEST_DIR}/iceemdan_finance_bench.cpp")
+    add_iceemdan_executable(iceemdan_finance_bench ${TEST_DIR}/iceemdan_finance_bench.cpp)
+endif()
+
+# --- Optimization benchmarks ---
+if(EXISTS "${TEST_DIR}/bench_adaptive.cpp")
+    add_iceemdan_executable(bench_adaptive ${TEST_DIR}/bench_adaptive.cpp)
+endif()
+
+if(EXISTS "${TEST_DIR}/bench_snumber.cpp")
+    add_iceemdan_executable(bench_snumber ${TEST_DIR}/bench_snumber.cpp)
+endif()
+
+if(EXISTS "${TEST_DIR}/bench_simd.cpp")
+    add_iceemdan_executable(bench_simd ${TEST_DIR}/bench_simd.cpp)
+endif()
+
+if(EXISTS "${TEST_DIR}/test_akima.cpp")
+    add_iceemdan_executable(test_akima ${TEST_DIR}/test_akima.cpp)
+endif()
+
+if(EXISTS "${TEST_DIR}/spline_bench.cpp")
+    add_eemd_executable(spline_bench ${TEST_DIR}/spline_bench.cpp)
 endif()
 
 # ============================================================================
