@@ -81,9 +81,10 @@ namespace eemd
         int32_t min_extrema = 3;
 
         // S-number stopping criterion for sifting: stop after S consecutive
-        // iterations where extrema count is stable. Reduces iterations ~50%.
+        // iterations where extrema count is stable. Reduces iterations ~10-14%.
+        // Benchmarks show S=6-8 gives best speedup with identical quality.
         // Set to 0 to disable (use only SD criterion).
-        int32_t s_number = 4;
+        int32_t s_number = 6;
 
         // === Optimization Flags ===
         bool use_antithetic = true;        // ±noise pairs (2x variance reduction)

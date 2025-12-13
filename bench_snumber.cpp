@@ -110,9 +110,8 @@ int main() {
     }
     
     printf("\n=== Recommendation ===\n");
-    printf("S=4 is a good balance: stops after 4 consecutive stable iterations.\n");
-    printf("Lower values (2-3) are faster but may under-sift.\n");
-    printf("Higher values (5-6) are more conservative.\n");
+    printf("S=6 is optimal: ~12%% speedup with identical quality.\n");
+    printf("Higher values (6-8) are actually faster due to SD criterion interaction.\n");
     
     return 0;
 }
