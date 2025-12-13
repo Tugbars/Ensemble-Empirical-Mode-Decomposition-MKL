@@ -29,6 +29,7 @@ For financial and scientific applications, this means cleaner trend extraction, 
 
 - **Complete ICEEMDAN Algorithm** — Full implementation of Colominas et al. (2014)
 - **Intel MKL Acceleration** — Spline interpolation via MKL Data Fitting, VSL random number generation
+- **Multiple Spline Methods** — Cubic (smooth), Akima (outlier-resistant), Linear (fast)
 - **OpenMP Parallelization** — Scales across CPU cores with lock-free reduction
 - **Multiple Processing Modes** — Standard (audio/seismic), Finance (trading), Scientific (reproducible research)
 - **Header-Only** — Single header file, easy integration
@@ -39,6 +40,7 @@ For financial and scientific applications, this means cleaner trend extraction, 
 | Signal Length | Ensemble Size | Time | Throughput |
 |---------------|---------------|------|------------|
 | 1024 | 100 | 6.6 ms | 15.4 MS/s |
+| 2048 | 100 | 11.3 ms | 18.1 MS/s |
 | 4096 | 100 | 28.4 ms | 14.4 MS/s |
 | 8192 | 100 | 61.6 ms | 13.3 MS/s |
 
@@ -159,6 +161,10 @@ eemd::ICEEMDAN decomposer;  // Standard mode by default
 eemd::ICEEMDAN decomposer(eemd::ProcessingMode::Standard);
 ```
 
+- Cubic splines (smooth C² interpolation)
+- Global volatility scaling
+- Mirror boundary extension
+
 ### Scientific Mode
 Best for: Research requiring reproducibility and audit trails
 
@@ -174,6 +180,10 @@ std::cout << "Seed used: " << diag.rng_seed_used << "\n";
 std::cout << "Orthogonality index: " << diag.orthogonality_index << "\n";
 ```
 
+- Cubic splines
+- No variance reduction tricks (pure algorithm)
+- Full convergence tracking
+
 ### Finance Mode
 Best for: Quantitative trading, real-time analysis
 
@@ -181,11 +191,24 @@ Best for: Quantitative trading, real-time analysis
 eemd::ICEEMDAN decomposer(eemd::ProcessingMode::Finance);
 
 // Features:
+// - Akima splines (outlier-resistant, no overshoot on gaps/crashes)
 // - EMA volatility scaling (adapts to regime changes)
 // - AR(1) boundary extrapolation (causal, no look-ahead)
 // - NaN/Inf sanitization (handles bad data feeds)
 // - Convergence tracking
 ```
+
+**Why Akima splines for finance?**
+
+Standard cubic splines are smooth but "overshoot" on sharp price moves (flash crashes, earnings gaps). This creates phantom high-frequency oscillations in IMF 1-2 that don't exist in the data.
+
+Akima splines use local 5-point slope estimation — they're virtually immune to distant outliers:
+
+| Spline | Continuity | Behavior on Gaps | Best For |
+|--------|------------|------------------|----------|
+| Cubic | C² (smooth) | Overshoots | Smooth signals |
+| **Akima** | C¹ (local) | Tight, stable | Financial data |
+| Linear | C⁰ | No overshoot | Very sparse extrema |
 
 ## Configuration
 
@@ -202,6 +225,23 @@ cfg.max_sift_iters = 100;     // Sifting iterations per IMF (default: 100)
 cfg.sift_threshold = 0.05;    // Sifting convergence threshold (default: 0.05)
 cfg.rng_seed = 42;            // Random seed for reproducibility (default: 0 = random)
 ```
+
+### Spline Methods
+
+Controls envelope interpolation:
+
+```cpp
+// Cubic: Smooth C² spline (default for Standard/Scientific)
+cfg.spline_method = eemd::SplineMethod::Cubic;
+
+// Akima: Local C¹ spline, outlier-resistant (default for Finance)
+cfg.spline_method = eemd::SplineMethod::Akima;
+
+// Linear: Simple linear interpolation (fastest, for very sparse extrema)
+cfg.spline_method = eemd::SplineMethod::Linear;
+```
+
+**Note:** Akima requires minimum 5 data points and strict geometric constraints. If these aren't met, the implementation automatically falls back to Cubic splines for that envelope — no manual handling needed.
 
 ### Volatility Methods
 
@@ -248,6 +288,16 @@ cfg.boundary_method = eemd::BoundaryMethod::Linear;
 | **ICEEMDAN** | **Minimal** | **Complete** | **Slow** |
 
 ICEEMDAN adds noise to the *residue* at each stage (not the original signal), producing cleaner IMFs with better frequency separation.
+
+### S-Number Sifting Criterion
+
+In addition to the standard SD (stopping difference) criterion, this implementation uses the **S-number criterion** for faster convergence:
+
+```cpp
+cfg.s_number = 6;  // Stop after 6 consecutive iterations with stable extrema count
+```
+
+When the number of extrema remains unchanged for S iterations, the IMF is considered converged. This provides ~15% speedup with identical decomposition quality. Set to 0 to disable.
 
 ### Orthogonality Index
 
@@ -343,6 +393,25 @@ for (int i = 0; i < n; ++i) {
 std::cout << "Reconstruction error: " << max_error << "\n";  // Should be ~1e-15
 ```
 
+### Finance Mode with Akima Splines
+
+```cpp
+eemd::ICEEMDAN decomposer(eemd::ProcessingMode::Finance);
+
+// Finance mode automatically sets:
+// - spline_method = Akima (with Cubic fallback)
+// - volatility_method = EMA
+// - boundary_method = AR (causal)
+// - sanitize_input = true
+
+decomposer.decompose(prices, n, imfs, residue);
+
+// IMF 0-1: Market microstructure noise
+// IMF 2-3: Short-term mean-reversion
+// IMF 4+: Swing/trend components
+// Residue: Long-term drift
+```
+
 ## Benchmarking
 
 Build and run the benchmarks:
@@ -350,6 +419,7 @@ Build and run the benchmarks:
 ```bash
 ./build/iceemdan_bench         # General performance
 ./build/iceemdan_finance_bench # Finance-specific tests
+./build/bench_snumber          # S-number optimization benchmark
 ```
 
 ## Visualization (Jupyter Notebook)
@@ -384,6 +454,8 @@ The notebook shows:
 
 4. **EMD**: Huang, N. E., et al. (1998). The empirical mode decomposition and the Hilbert spectrum for nonlinear and non-stationary time series analysis. *Proceedings of the Royal Society A*, 454(1971), 903-995.
 
+5. **Akima Splines**: Akima, H. (1970). A new method of interpolation and smooth curve fitting based on local procedures. *Journal of the ACM*, 17(4), 589-602.
+
 ## Citation
 
 If you use this implementation in your research, please cite:
@@ -409,3 +481,4 @@ Contributions welcome! Please open an issue or PR.
 
 - Intel MKL for high-performance spline fitting
 - Original ICEEMDAN algorithm by Colominas et al.
+- Akima spline method for robust envelope construction
