@@ -143,9 +143,17 @@ if(EXISTS "${TEST_DIR}/eemd_test.cpp")
     add_eemd_executable(eemd_test ${TEST_DIR}/eemd_test.cpp)
 endif()
 
+if(EXISTS "${TEST_DIR}/eemd_debug.cpp")
+    add_eemd_executable(eemd_debug ${TEST_DIR}/eemd_debug.cpp)
+endif()
+
 # --- ICEEMDAN tests ---
 if(EXISTS "${TEST_DIR}/iceemdan_bench.cpp")
     add_iceemdan_executable(iceemdan_bench ${TEST_DIR}/iceemdan_bench.cpp)
+endif()
+
+if(EXISTS "${TEST_DIR}/iceemdan_test.cpp")
+    add_iceemdan_executable(iceemdan_test ${TEST_DIR}/iceemdan_test.cpp)
 endif()
 
 if(EXISTS "${TEST_DIR}/iceemdan_accuracy_test.cpp")
