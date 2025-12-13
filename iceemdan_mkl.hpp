@@ -63,6 +63,23 @@ namespace eemd
     };
 
     // ============================================================================
+    // Cache-Line Padded Counter (Prevents False Sharing)
+    // ============================================================================
+
+    /**
+     * Padded counter to prevent false sharing between threads.
+     * Each counter occupies its own 64-byte cache line.
+     */
+    struct alignas(64) PaddedCounter
+    {
+        int32_t value;
+        char padding[60]; // Pad to 64 bytes
+
+        PaddedCounter() : value(0) {}
+        void reset() { value = 0; }
+    };
+
+    // ============================================================================
     // ICEEMDAN Configuration (Mode-Based)
     // ============================================================================
 
@@ -1302,7 +1319,8 @@ namespace eemd
             {
                 acc.resize(n);
             }
-            std::vector<int32_t> thread_valid_counts(n_threads_max, 0);
+            // Use cache-line padded counters to prevent false sharing
+            std::vector<PaddedCounter> thread_valid_counts(n_threads_max);
 
             // Batch processing state (shared across threads)
             int32_t batch_start = 0;
@@ -1382,7 +1400,7 @@ namespace eemd
                         // Reset thread accumulators for THIS BATCH only
                         // (cumulative sum is in mean_accumulator)
                         thread_accs[tid].zero();
-                        thread_valid_counts[tid] = 0;
+                        thread_valid_counts[tid].value = 0;
 
                         // Process this batch of trials using static scheduling
 #pragma omp for schedule(static)
@@ -1425,7 +1443,7 @@ namespace eemd
 
                             if (lm_computer.compute(tl_perturbed.data, n, tl_local_mean.data))
                             {
-                                ++thread_valid_counts[tid];
+                                ++thread_valid_counts[tid].value;
 
                                 double *__restrict acc = thread_accs[tid].data;
                                 const double *__restrict lm = tl_local_mean.data;
@@ -1466,7 +1484,7 @@ namespace eemd
 
                                 if (lm_computer.compute(tl_perturbed_neg.data, n, tl_local_mean_neg.data))
                                 {
-                                    ++thread_valid_counts[tid];
+                                    ++thread_valid_counts[tid].value;
 
                                     double *__restrict acc = thread_accs[tid].data;
                                     const double *__restrict lm = tl_local_mean_neg.data;
@@ -1504,7 +1522,7 @@ namespace eemd
                             int32_t batch_valid_count = 0;
                             for (int32_t t = 0; t < n_threads; ++t)
                             {
-                                batch_valid_count += thread_valid_counts[t];
+                                batch_valid_count += thread_valid_counts[t].value;
                             }
                             cumulative_valid_trials += batch_valid_count;
                             total_valid_this_imf = cumulative_valid_trials; // Update shared var
@@ -1605,7 +1623,7 @@ namespace eemd
                         for (int32_t t = 0; t < n_threads; ++t)
                         {
                             thread_accs[t].zero();
-                            thread_valid_counts[t] = 0;
+                            thread_valid_counts[t].value = 0;
                         }
                     }
                 } // end IMF loop
